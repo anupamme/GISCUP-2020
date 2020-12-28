@@ -67,7 +67,6 @@ public class CityMap {
 			intersection.pathTableIndex = index++;
 			intersectionsByPathTableIndex.put(intersection.pathTableIndex, intersection);
 		}
-
 	}
 
 	
