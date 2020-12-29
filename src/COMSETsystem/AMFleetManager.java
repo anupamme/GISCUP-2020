@@ -24,7 +24,7 @@ public class AMFleetManager extends FleetManager {
     Map<String, Integer> hexAddr2Region = new HashMap<>();
     Map<String, List<Intersection>> regionIntersectionMap = new HashMap<>();
     Map<String, List<Long>> regionAvailableAgentMap = new HashMap<>();
-    List<String> absentRegions = new ArrayList<>();
+    Set<String> absentRegions = new HashSet<>();
     Map<String, Integer> regionResourceMap = new HashMap<>();
 
     public AMFleetManager(CityMap map) {
@@ -158,6 +158,7 @@ public class AMFleetManager extends FleetManager {
      */
     @java.lang.Override
     public AgentAction onResourceAvailabilityChange(Resource resource, ResourceState state, LocationOnRoad currentLoc, long time) {
+        System.out.println("Total #unavailable regions: " + absentRegions.size());
         AgentAction action = AgentAction.doNothing();
         if (state == ResourceState.AVAILABLE) {
             double[] latLon = getLocationLatLon(currentLoc);
@@ -193,6 +194,7 @@ public class AMFleetManager extends FleetManager {
             return regionResourceMap.get(h3_code);
         }
         else {
+            absentRegions.add(h3_code);
             System.out.println("Could not find the region in the resource map: " + h3_code);
             return 1;
         }
