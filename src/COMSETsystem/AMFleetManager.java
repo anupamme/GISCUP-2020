@@ -193,6 +193,7 @@ public class AMFleetManager extends FleetManager {
             return regionResourceMap.get(h3_code);
         }
         else {
+            System.out.println("Could not find the region in the resource map: " + h3_code);
             return 1;
         }
     }
@@ -209,7 +210,8 @@ public class AMFleetManager extends FleetManager {
                 e.printStackTrace();
                 distance = 1; // XXX
             }
-            float netValue = candidate_resource/(distance + 1) ;
+//            System.out.println("Distance between regions " + source_h3 + ", " + candidate_region + ": " + distance);
+            float netValue = (float) candidate_resource/(distance + 1) ;
             sum += netValue;
             region_cumulative.put(candidate_region, netValue);
         }
@@ -343,6 +345,7 @@ public class AMFleetManager extends FleetManager {
             int resource_estimate = get_predictions_request(nearest_region, time);
             region_map.put(nearest_region, resource_estimate);
         }
+//        System.out.println("Candidate Resource: " + region_map);
         Map<String, Float> h3_probabilities = calculate_probabilities(hexAddr, region_map);
 //        System.out.println("Region Probabilities: " + h3_probabilities);
         String h3_selected = sample_regions(h3_probabilities);
