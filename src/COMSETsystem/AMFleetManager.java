@@ -2,6 +2,7 @@ package COMSETsystem;
 
 import UserExamples.GlobalParameters;
 import UserExamples.Region;
+import UserExamples.TemporalUtils;
 import com.uber.h3core.H3Core;
 import com.uber.h3core.exceptions.DistanceUndefinedException;
 import com.uber.h3core.exceptions.LineUndefinedException;
@@ -21,25 +22,87 @@ public class AMFleetManager extends FleetManager {
     }
     H3Core h3;
     int h3_resolution = 8;
+    TemporalUtils temporalUtils;
     Map<String, Integer> hexAddr2Region = new HashMap<>();
     Map<String, List<Intersection>> regionIntersectionMap = new HashMap<>();
     Map<String, List<Long>> regionAvailableAgentMap = new HashMap<>();
     Set<String> absentRegions = new HashSet<>();
     Map<String, Integer> regionResourceMap = new HashMap<>();
+    List<String> regionList = new ArrayList<>();
+    Map<String, List<Integer>> regionResourceTimeStamp = new HashMap<>();
+    Map<String, List<Integer>> regionDestinationTimeStamp = new HashMap<>();
 
     public AMFleetManager(CityMap map) {
         super(map);
+        temporalUtils = new TemporalUtils(map.computeZoneId());
         try{
             h3 = H3Core.newInstance();
         }catch (IOException ex){
             ex.printStackTrace();
         }
         // read the predictions file
-        readRegionFile();
+        readRegionList(GlobalParameters.regions_list);
+        readPickupMatrix(GlobalParameters.pickup_pred_file);
+        readDropOffMatrix(GlobalParameters.dropoff_pred_file);
+        populateRegionIntersecitonMap();
         readRegionFrequencyFile(GlobalParameters.region_frequency);
     }
 
-    private void readRegionFile(){
+    private void readRegionList(String fileName) {
+        try{
+            File file = new File(fileName);
+            BufferedReader reader = new BufferedReader(new FileReader(file));
+            String tmp = null;
+            while ((tmp = reader.readLine()) != null) {
+                regionList.add(tmp);
+            }
+            reader.close();
+        }catch (Exception ex){
+            ex.printStackTrace();
+        }
+    }
+
+    private void readPickupMatrix(String fileName){
+        try{
+            File file = new File(fileName);
+            BufferedReader reader = new BufferedReader(new FileReader(file));
+            for (String item : regionList)
+                regionResourceTimeStamp.put(item, new ArrayList<Integer>());
+            String tmp = null;
+            while ((tmp = reader.readLine()) != null){
+                String[] regionData = tmp.split(",");
+                for(int i=0; i<regionData.length; i++){
+                    String region_hex = regionList.get(i);
+                    regionResourceTimeStamp.get(region_hex).add((int)Double.parseDouble(regionData[i]));
+                }
+            }
+            reader.close();
+        }catch (Exception ex){
+            ex.printStackTrace();
+        }
+    }
+
+    private void readDropOffMatrix(String fileName){
+        try{
+            File file = new File(fileName);
+            BufferedReader reader = new BufferedReader(new FileReader(file));
+            for (String item : regionList)
+                regionDestinationTimeStamp.put(item, new ArrayList<Integer>());
+            String tmp = null;
+            while ((tmp = reader.readLine()) != null){
+                String[] regionData = tmp.split(",");
+                for(int i=0; i<regionData.length; i++){
+                    String region_hex = regionList.get(i);
+                    regionDestinationTimeStamp.get(region_hex).add((int)Double.parseDouble(regionData[i]));
+                }
+            }
+            reader.close();
+        }catch (Exception ex){
+            ex.printStackTrace();
+        }
+    }
+
+    private void populateRegionIntersecitonMap(){
         for(Intersection i : map.intersections().values()){
             double lat = i.latitude;
             double lng = i.longitude;
@@ -195,16 +258,16 @@ public class AMFleetManager extends FleetManager {
         }
         else {
             absentRegions.add(h3_code);
-            System.out.println("Could not find the region in the resource map: " + h3_code);
+//            System.out.println("Could not find the region in the resource map: " + h3_code);
             return 1;
         }
     }
 
-    private Map<String, Float> calculate_probabilities(String source_h3, Map<String, Integer> region_resource){
+    private Map<String, Float> calculate_probabilities(String source_h3, Map<String, Double> region_resource){
         Map<String, Float> region_cumulative = new HashMap<>();
         float sum = 0;
         for(String candidate_region : region_resource.keySet()){
-            int candidate_resource = region_resource.get(candidate_region);
+            double candidate_resource = region_resource.get(candidate_region);
             int distance;
             try {
                 distance = h3.h3Distance(source_h3, candidate_region);
@@ -281,6 +344,23 @@ public class AMFleetManager extends FleetManager {
         }
     }
 
+    private double getRegionWeight(String region_h3, long time){
+        int timeIndex = temporalUtils.findTimeIntervalIndex(time);
+        int k = GlobalParameters.timeHorizon / GlobalParameters.timeInterval;
+        double weight = 1.0;
+        List<Integer> resourceTimeStamp = regionResourceTimeStamp.get(region_h3);
+        List<Integer> destinationTimeStamp = regionDestinationTimeStamp.get(region_h3);
+        for(int i = timeIndex; i < timeIndex + k; i++){
+            if(i < resourceTimeStamp.size())
+                weight += Math.pow(0.8, i - timeIndex) * (resourceTimeStamp.get(i) - GlobalParameters.lambda * destinationTimeStamp.get(i));
+//                weight += region.resourceQuantity.get(i) - GlobalParameters.lambda * region
+//                        .destinationQuantity.get(i);
+        }
+        if(weight < 0)
+            weight = 1.0;
+        return weight;
+    }
+
     /*
         Build a rudimentary predictor:
             input: 15 digit h3 code, timestamp
@@ -322,12 +402,12 @@ public class AMFleetManager extends FleetManager {
                     nearest_h3.add(region);
                 } else {
                     absentRegions.add(region);
-                    System.out.println("Ignoring the absent region: " + region);
+//                    System.out.println("Ignoring the absent region: " + region);
                 }
             }
         }
         else {
-            System.out.println("Region not found: " + hexAddr);
+//            System.out.println("Region not found: " + hexAddr);
             int radius = 2;
             do {
                 List<String> candidate_regions = h3.kRing(hexAddr, radius);
@@ -342,9 +422,9 @@ public class AMFleetManager extends FleetManager {
                 radius += 2 * radius;
             }while (nearest_h3.size() == 0);
         }
-        Map<String, Integer> region_map = new HashMap<>();
+        Map<String, Double> region_map = new HashMap<>();
         for (String nearest_region : nearest_h3){
-            int resource_estimate = get_predictions_request(nearest_region, time);
+            double resource_estimate = getRegionWeight(nearest_region, time);
             region_map.put(nearest_region, resource_estimate);
         }
 //        System.out.println("Candidate Resource: " + region_map);
