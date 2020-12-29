@@ -6,10 +6,7 @@ import com.uber.h3core.H3Core;
 import com.uber.h3core.exceptions.DistanceUndefinedException;
 import com.uber.h3core.exceptions.LineUndefinedException;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 import java.lang.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -61,7 +58,12 @@ public class AMFleetManager extends FleetManager {
 
     private void readRegionFrequencyFile(String fileName){
         File file = new File(fileName);
-        BufferedReader reader = new BufferedReader(new FileReader(file));
+        BufferedReader reader = null;
+        try {
+            reader = new BufferedReader(new FileReader(file));
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
         String tempString = null;
         while(true) {
             try {
