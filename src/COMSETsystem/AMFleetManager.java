@@ -2,7 +2,6 @@ package COMSETsystem;
 
 import UserExamples.GlobalParameters;
 import UserExamples.Region;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.uber.h3core.H3Core;
 import com.uber.h3core.exceptions.DistanceUndefinedException;
 import com.uber.h3core.exceptions.LineUndefinedException;
@@ -14,6 +13,7 @@ import java.io.IOException;
 import java.util.*;
 import java.lang.*;
 import java.util.concurrent.ThreadLocalRandom;
+
 
 public class AMFleetManager extends FleetManager {
 
@@ -27,6 +27,8 @@ public class AMFleetManager extends FleetManager {
     Map<String, Integer> hexAddr2Region = new HashMap<>();
     Map<String, List<Intersection>> regionIntersectionMap = new HashMap<>();
     Map<String, List<Long>> regionAvailableAgentMap = new HashMap<>();
+    List<String> absentRegions = new ArrayList<>();
+    Map<String, Integer> regionResourceMap = new HashMap<>();
 
     public AMFleetManager(CityMap map) {
         super(map);
@@ -37,6 +39,7 @@ public class AMFleetManager extends FleetManager {
         }
         // read the predictions file
         readRegionFile();
+        readRegionFrequencyFile(GlobalParameters.region_frequency);
     }
 
     private void readRegionFile(){
@@ -53,6 +56,21 @@ public class AMFleetManager extends FleetManager {
                 localVar.add(i);
                 regionIntersectionMap.put(hexAddr, localVar);
             }
+        }
+    }
+
+    private void readRegionFrequencyFile(String fileName){
+        File file = new File(fileName);
+        BufferedReader reader = new BufferedReader(new FileReader(file));
+        String tempString = null;
+        while(true) {
+            try {
+                if (!((tempString = reader.readLine()) != null)) break;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            String[] elements = tempString.split(":");
+            regionResourceMap.put(elements[0], Integer.parseInt(elements[1]));
         }
     }
 
@@ -169,7 +187,12 @@ public class AMFleetManager extends FleetManager {
     }
 
     private int get_predictions_request(String h3_code, long timestamp){
-        return 5;
+        if (regionResourceMap.containsKey(h3_code)){
+            return regionResourceMap.get(h3_code);
+        }
+        else {
+            return 1;
+        }
     }
 
     private Map<String, Float> calculate_probabilities(String source_h3, Map<String, Integer> region_resource){
@@ -292,6 +315,7 @@ public class AMFleetManager extends FleetManager {
                 if (regionIntersectionMap.containsKey(region)) {
                     nearest_h3.add(region);
                 } else {
+                    absentRegions.add(region);
                     System.out.println("Ignoring the absent region: " + region);
                 }
             }
