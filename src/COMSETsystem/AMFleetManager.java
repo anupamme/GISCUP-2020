@@ -20,7 +20,7 @@ public class AMFleetManager extends FleetManager {
         Waiting_Time_Resource
     }
     H3Core h3;
-    int h3_resolution = 7;
+    int h3_resolution = 8;
     Map<String, Integer> hexAddr2Region = new HashMap<>();
     Map<String, List<Intersection>> regionIntersectionMap = new HashMap<>();
     Map<String, List<Long>> regionAvailableAgentMap = new HashMap<>();
