@@ -21,22 +21,24 @@ public class AMFleetManager extends FleetManager {
         Waiting_Time_Resource
     }
     H3Core h3;
-    int h3_resolution = 8;
-    TemporalUtils temporalUtils;
-    Map<String, Integer> hexAddr2Region = new HashMap<>();
-    Map<String, List<Intersection>> regionIntersectionMap = new HashMap<>();
-    Map<String, List<Long>> regionAvailableAgentMap = new HashMap<>();
-    Set<String> absentRegions = new HashSet<>();
-    Map<String, Integer> regionResourceMap = new HashMap<>();
-    List<String> regionList = new ArrayList<>();
-    Map<String, List<Integer>> regionResourceTimeStamp = new HashMap<>();
-    Map<String, List<Integer>> regionDestinationTimeStamp = new HashMap<>();
+    private final int h3_resolution = 8;
+    private TemporalUtils temporalUtils;
+    private final Map<String, Integer> hexAddr2Region = new HashMap<>();
+    private final Map<String, List<Intersection>> regionIntersectionMap = new HashMap<>();
+    private final Map<String, List<Long>> regionAvailableAgentMap = new HashMap<>();
+    private final Set<String> absentRegions = new HashSet<>();
+    private final Map<String, Integer> regionResourceMap = new HashMap<>();
+    private final List<String> regionList = new ArrayList<>();
+    private final Map<String, List<Integer>> regionResourceTimeStamp = new HashMap<>();
+    private final Map<String, List<Integer>> regionDestinationTimeStamp = new HashMap<>();
     private final Map<Long, Long> agentLastAppearTime = new HashMap<>();
     private final Map<Long, LocationOnRoad> agentLastLocation = new HashMap<>();
     private final Set<Long> availableAgent = new TreeSet<>(Comparator.comparingLong((Long id) -> id));
     private final Set<Resource> waitingResources = new TreeSet<>(Comparator.comparingLong((Resource r) -> r.id));
     private final Map<Long, Resource> resourceAssignment = new HashMap<>();
-    Map<Long, LinkedList<Intersection>> agentRoutes = new HashMap<>();
+    private final Map<Long, LinkedList<Intersection>> agentRoutes = new HashMap<>();
+    private final Map<Long, List<Resource>> agentResourceHistory = new HashMap<>();
+
 
     public AMFleetManager(CityMap map) {
         super(map);
@@ -237,6 +239,9 @@ public class AMFleetManager extends FleetManager {
     public AgentAction onResourceAvailabilityChange(Resource resource, ResourceState state, LocationOnRoad currentLoc,
                                                     long time) {
         System.out.println("Total #unavailable regions: " + absentRegions.size());
+        for (Long agentId : agentResourceHistory.keySet()){
+            System.out.println("agent, size: " + agentId + ": " + agentResourceHistory.get(agentId).size());
+        }
         AgentAction action = AgentAction.doNothing();
         if (state == ResourceState.AVAILABLE) {
             Long nearestAgentId = getNearestAvailableAgent(resource, time);
@@ -245,6 +250,13 @@ public class AMFleetManager extends FleetManager {
             }
             else {
                 resourceAssignment.put(nearestAgentId, resource);
+                if (agentResourceHistory.containsKey(nearestAgentId))
+                    agentResourceHistory.get(nearestAgentId).add(resource);
+                else {
+                    List<Resource> newList = new ArrayList<>();
+                    newList.add(resource);
+                    agentResourceHistory.put(nearestAgentId, newList);
+                }
                 agentRoutes.put(nearestAgentId, new LinkedList<>());
                 availableAgent.remove(nearestAgentId);
                 action = AgentAction.assignTo(nearestAgentId, resource.id);
