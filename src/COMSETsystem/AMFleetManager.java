@@ -31,6 +31,12 @@ public class AMFleetManager extends FleetManager {
     List<String> regionList = new ArrayList<>();
     Map<String, List<Integer>> regionResourceTimeStamp = new HashMap<>();
     Map<String, List<Integer>> regionDestinationTimeStamp = new HashMap<>();
+    private final Map<Long, Long> agentLastAppearTime = new HashMap<>();
+    private final Map<Long, LocationOnRoad> agentLastLocation = new HashMap<>();
+    private final Set<Long> availableAgent = new TreeSet<>(Comparator.comparingLong((Long id) -> id));
+    private final Set<Resource> waitingResources = new TreeSet<>(Comparator.comparingLong((Resource r) -> r.id));
+    private final Map<Long, Resource> resourceAssignment = new HashMap<>();
+    Map<Long, LinkedList<Intersection>> agentRoutes = new HashMap<>();
 
     public AMFleetManager(CityMap map) {
         super(map);
@@ -180,33 +186,41 @@ public class AMFleetManager extends FleetManager {
      */
     @java.lang.Override
     public void onAgentIntroduced(long agentId, LocationOnRoad currentLoc, long time) {
-        addAgentToLeafNode(agentId, currentLoc);
+        agentLastAppearTime.put(agentId, time);
+        agentLastLocation.put(agentId, currentLoc);
+        availableAgent.add(agentId);
     }
 
     /*
         1.
 
      */
-    private long findNearestAgent(String h3Address){
-        if (regionAvailableAgentMap.containsKey(h3Address)) {
-            List<Long> availableAgents = regionAvailableAgentMap.get(h3Address);
-            if (availableAgents.size() > 0) {
-                return availableAgents.remove(0);
+    Long getNearestAvailableAgent(Resource resource, long currentTime) {
+        long earliest = Long.MAX_VALUE;
+        Long bestAgent = null;
+        for (Long id : availableAgent) {
+            if (!agentLastLocation.containsKey(id)) continue;
+
+            LocationOnRoad curLoc = getCurrentLocation(
+                    agentLastAppearTime.get(id),
+                    agentLastLocation.get(id),
+                    currentTime);
+            // Warning: map.travelTimeBetween returns the travel time based on speed limits, not
+            // the dynamic travel time. Thus the travel time returned by map.travelTimeBetween may be different
+            // than the actual travel time.
+            long travelTime = map.travelTimeBetween(curLoc, resource.pickupLoc);
+            long arriveTime = travelTime + currentTime;
+            if (arriveTime < earliest) {
+                bestAgent = id;
+                earliest = arriveTime;
             }
         }
-        int nearbyIndex = 1;
-        while(nearbyIndex < 5) {
-            List<String> nearbyRegions = h3.kRing(h3Address, nearbyIndex);
-            for (String region: nearbyRegions) {
-                if (regionAvailableAgentMap.containsKey(region)) {
-                    if (regionAvailableAgentMap.get(region).size() > 0) {
-                        return regionAvailableAgentMap.get(region).remove(0);
-                    }
-                }
-            }
-            nearbyIndex += 1;
+
+        if (earliest <= resource.expirationTime) {
+            return bestAgent;
+        } else {
+            return null;
         }
-        return -1;
     }
 
     /*
@@ -220,36 +234,63 @@ public class AMFleetManager extends FleetManager {
         4.
      */
     @java.lang.Override
-    public AgentAction onResourceAvailabilityChange(Resource resource, ResourceState state, LocationOnRoad currentLoc, long time) {
+    public AgentAction onResourceAvailabilityChange(Resource resource, ResourceState state, LocationOnRoad currentLoc,
+                                                    long time) {
         System.out.println("Total #unavailable regions: " + absentRegions.size());
         AgentAction action = AgentAction.doNothing();
         if (state == ResourceState.AVAILABLE) {
-            double[] latLon = getLocationLatLon(currentLoc);
-            String hexAddr = h3.geoToH3Address(latLon[0],
-                    latLon[1], h3_resolution);
-            long nearestAgentId = findNearestAgent(hexAddr);
-            if (nearestAgentId == -1) {
-                action = AgentAction.doNothing();
-                return action;
+            Long nearestAgentId = getNearestAvailableAgent(resource, time);
+            if (nearestAgentId == null) {
+                waitingResources.add(resource);
             }
             else {
+                resourceAssignment.put(nearestAgentId, resource);
+                agentRoutes.put(nearestAgentId, new LinkedList<>());
+                availableAgent.remove(nearestAgentId);
                 action = AgentAction.assignTo(nearestAgentId, resource.id);
-                return action;
             }
         }
         else if (state == ResourceState.DROPPED_OFF){
-            addAgentToLeafNode(resource.assignedAgentId, currentLoc);
-            return action;
+            Resource bestResource =  null;
+            long earliest = Long.MAX_VALUE;
+            for (Resource res : waitingResources) {
+                // If res is in waitingResources, then it must have not expired yet
+                // testing null pointer exception
+                // Warning: map.travelTimeBetween returns the travel time based on speed limits, not
+                // the dynamic travel time. Thus the travel time returned by map.travelTimeBetween may be different
+                // than the actual travel time.
+                long travelTime = map.travelTimeBetween(currentLoc, res.pickupLoc);
+
+                // if the resource is reachable before expiration
+                long arriveTime = time + travelTime;
+                if (arriveTime <= res.expirationTime && arriveTime < earliest) {
+                    earliest = arriveTime;
+                    bestResource = res;
+                }
+            }
+            if (bestResource != null) {
+                waitingResources.remove(bestResource);
+                action = AgentAction.assignTo(resource.assignedAgentId, bestResource.id);
+            } else {
+                availableAgent.add(resource.assignedAgentId);
+                action = AgentAction.doNothing();
+            }
+            resourceAssignment.put(resource.assignedAgentId, bestResource);
+            agentLastLocation.put(resource.assignedAgentId, currentLoc);
+            agentLastAppearTime.put(resource.assignedAgentId, time);
         }
         else if (state == ResourceState.PICKED_UP) {
-            return action;
+            agentRoutes.put(resource.assignedAgentId, new LinkedList<>());
         }
         else if (state == ResourceState.EXPIRED) {
-            return action;
+            waitingResources.remove(resource);
+            if (resource.assignedAgentId != -1) {
+                agentRoutes.put(resource.assignedAgentId, new LinkedList<>());
+                availableAgent.add(resource.assignedAgentId);
+                resourceAssignment.remove(resource.assignedAgentId);
+            }
         }
-        else {
-            return action;
-        }
+        return action;
     }
 
     private int get_predictions_request(String h3_code, long timestamp){
@@ -361,32 +402,8 @@ public class AMFleetManager extends FleetManager {
         return weight;
     }
 
-    /*
-        Build a rudimentary predictor:
-            input: 15 digit h3 code, timestamp
-            output: number of requests.
-        What we know: number of agents in that h3 region: we keep a count of that
-        In each region: there are two stats: number of predicted requests, number of available agents.
-        We select the regions where the difference > 0.
-        For each region we compute: free_slots/distance e.g. if a hexagon has 5 free slots and is at the distance of
-        2 units then this number is 5/2.
-        Based on these numbers we sample the a region as a destination region.
-        We randomly pick an intersection within the region and select it as a destination intersection.
+    LinkedList<Intersection> getRandomRoute(long agentId, LocationOnRoad currentLoc, long time) {
 
-        Steps:
-        1. h3_code = h3util.get_current_h3_code(currentLoc, resolution=res)
-        2. max_nearest_neighbours = 10
-        3. nearest_1 = h3.k_ring(h3_code, 1)
-        4. nearest_2 = h3.k_ring(h3_code, 2)
-        5. predicted_requests = get_predictions_request(nearest_1 + nearest_2)
-        6. regions_sel = selected_regions(nearest_1 + nearest_2,  predicted_requests)
-        7. region_sel = sample_region(regions_sel)
-        8. intersection_sel = get_an intersection(region_sel)
-        9. return intersection_sel
-
-     */
-    @java.lang.Override
-    public Intersection onReachIntersection(long agentId, long time, LocationOnRoad currentLoc) {
 //        System.out.println("finding next intersection for: " + agentId);
         double[] latLon = getLocationLatLon(currentLoc);
         String hexAddr = h3.geoToH3Address(latLon[0], latLon[1], h3_resolution);
@@ -438,9 +455,66 @@ public class AMFleetManager extends FleetManager {
         LinkedList<Intersection> path = map.shortestTravelTimePath(sourceIntersection, selected_intersection);
 //        System.out.println("Selected Path: " + path);
         path.poll(); // ignore the first destination as it is the source one
-        Intersection destination = path.poll();
+//        Intersection destination = path.poll();
 //        System.out.println("poll.destination: " + destination);
-        return destination;
+        return path;
+    }
+
+    LinkedList<Intersection> planRoute(long agentId, LocationOnRoad currentLocation, long time) {
+        Resource assignedRes = resourceAssignment.get(agentId);
+
+        if (assignedRes != null) {
+            Intersection sourceIntersection = currentLocation.road.to;
+            Intersection destinationIntersection = assignedRes.pickupLoc.road.from;
+            LinkedList<Intersection> shortestTravelTimePath = map.shortestTravelTimePath(sourceIntersection,
+                    destinationIntersection);
+            shortestTravelTimePath.poll(); // Ensure that route.get(0) != currentLocation.road.to.
+            return shortestTravelTimePath;
+        } else {
+            return getRandomRoute(agentId, currentLocation, time);
+        }
+    }
+
+    /*
+        Build a rudimentary predictor:
+            input: 15 digit h3 code, timestamp
+            output: number of requests.
+        What we know: number of agents in that h3 region: we keep a count of that
+        In each region: there are two stats: number of predicted requests, number of available agents.
+        We select the regions where the difference > 0.
+        For each region we compute: free_slots/distance e.g. if a hexagon has 5 free slots and is at the distance of
+        2 units then this number is 5/2.
+        Based on these numbers we sample the a region as a destination region.
+        We randomly pick an intersection within the region and select it as a destination intersection.
+
+        Steps:
+        1. h3_code = h3util.get_current_h3_code(currentLoc, resolution=res)
+        2. max_nearest_neighbours = 10
+        3. nearest_1 = h3.k_ring(h3_code, 1)
+        4. nearest_2 = h3.k_ring(h3_code, 2)
+        5. predicted_requests = get_predictions_request(nearest_1 + nearest_2)
+        6. regions_sel = selected_regions(nearest_1 + nearest_2,  predicted_requests)
+        7. region_sel = sample_region(regions_sel)
+        8. intersection_sel = get_an intersection(region_sel)
+        9. return intersection_sel
+
+     */
+    @java.lang.Override
+    public Intersection onReachIntersection(long agentId, long time, LocationOnRoad currentLoc) {
+        if (agentId == 240902L && time == 1464800008L) {
+            System.out.println("here");
+        }
+        agentLastAppearTime.put(agentId, time);
+        LinkedList<Intersection> route = agentRoutes.getOrDefault(agentId, new LinkedList<>());
+        if (route.isEmpty()) {
+            route = planRoute(agentId, currentLoc, time);
+            agentRoutes.put(agentId, route);
+        }
+        Intersection nextLocation = route.poll();
+        Road nextRoad = currentLoc.road.to.roadTo(nextLocation);
+        LocationOnRoad locationOnRoad = LocationOnRoad.createFromRoadStart(nextRoad);
+        agentLastLocation.put(agentId, locationOnRoad);
+        return nextLocation;
     }
 
     LinkedList<Intersection> planRouteToTarget(LocationOnRoad source, LocationOnRoad destination) {

@@ -12,7 +12,6 @@ public class RandomDestinationFleetManager extends FleetManager {
     private final Set<Long> availableAgent = new TreeSet<>(Comparator.comparingLong((Long id) -> id));
     private final Map<Long, Random> agentRnd = new HashMap<>();
 
-
     Map<Long, LinkedList<Intersection>> agentRoutes = new HashMap<>();
 
     /**
