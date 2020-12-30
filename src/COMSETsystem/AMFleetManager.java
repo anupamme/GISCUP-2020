@@ -293,17 +293,6 @@ public class AMFleetManager extends FleetManager {
         return action;
     }
 
-    private int get_predictions_request(String h3_code, long timestamp){
-        if (regionResourceMap.containsKey(h3_code)){
-            return regionResourceMap.get(h3_code);
-        }
-        else {
-            absentRegions.add(h3_code);
-//            System.out.println("Could not find the region in the resource map: " + h3_code);
-            return 1;
-        }
-    }
-
     private Map<String, Float> calculate_probabilities(String source_h3, Map<String, Double> region_resource){
         Map<String, Float> region_cumulative = new HashMap<>();
         float sum = 0;
@@ -385,7 +374,7 @@ public class AMFleetManager extends FleetManager {
         }
     }
 
-    private double getRegionWeight(String region_h3, long time){
+    private double getRegionWeightTemporal(String region_h3, long time){
         int timeIndex = temporalUtils.findTimeIntervalIndex(time);
         int k = GlobalParameters.timeHorizon / GlobalParameters.timeInterval;
         double weight = 1.0;
@@ -394,12 +383,23 @@ public class AMFleetManager extends FleetManager {
         for(int i = timeIndex; i < timeIndex + k; i++){
             if(i < resourceTimeStamp.size())
                 weight += Math.pow(0.8, i - timeIndex) * (resourceTimeStamp.get(i) - GlobalParameters.lambda * destinationTimeStamp.get(i));
-//                weight += region.resourceQuantity.get(i) - GlobalParameters.lambda * region
-//                        .destinationQuantity.get(i);
         }
         if(weight < 0)
             weight = 1.0;
         return weight;
+    }
+
+
+
+    private int getRegionWeight(String h3_code){
+        if (regionResourceMap.containsKey(h3_code)){
+            return regionResourceMap.get(h3_code);
+        }
+        else {
+            absentRegions.add(h3_code);
+//            System.out.println("Could not find the region in the resource map: " + h3_code);
+            return 1;
+        }
     }
 
     LinkedList<Intersection> getRandomRoute(long agentId, LocationOnRoad currentLoc, long time) {
@@ -441,7 +441,8 @@ public class AMFleetManager extends FleetManager {
         }
         Map<String, Double> region_map = new HashMap<>();
         for (String nearest_region : nearest_h3){
-            double resource_estimate = getRegionWeight(nearest_region, time);
+            double resource_estimate = getRegionWeight(nearest_region);
+//            double resource_estimate = getRegionWeightTemporal(nearest_region, time);
             region_map.put(nearest_region, resource_estimate);
         }
 //        System.out.println("Candidate Resource: " + region_map);
