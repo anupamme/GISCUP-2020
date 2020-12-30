@@ -1,11 +1,9 @@
 package COMSETsystem;
 
 import UserExamples.GlobalParameters;
-import UserExamples.Region;
 import UserExamples.TemporalUtils;
 import com.uber.h3core.H3Core;
 import com.uber.h3core.exceptions.DistanceUndefinedException;
-import com.uber.h3core.exceptions.LineUndefinedException;
 
 import java.io.*;
 import java.util.*;
@@ -200,6 +198,7 @@ public class AMFleetManager extends FleetManager {
     Long getNearestAvailableAgent(Resource resource, long currentTime) {
         long earliest = Long.MAX_VALUE;
         Long bestAgent = null;
+        List<Tuple> eligibleAgents = new ArrayList<>();
         for (Long id : availableAgent) {
             if (!agentLastLocation.containsKey(id)) continue;
 
@@ -212,17 +211,33 @@ public class AMFleetManager extends FleetManager {
             // than the actual travel time.
             long travelTime = map.travelTimeBetween(curLoc, resource.pickupLoc);
             long arriveTime = travelTime + currentTime;
-            if (arriveTime < earliest) {
-                bestAgent = id;
-                earliest = arriveTime;
+            int numberOfRides;
+            if (agentResourceHistory.containsKey(id))
+                numberOfRides = agentResourceHistory.get(id).size();
+            else
+                numberOfRides = 0;
+            if (arriveTime <= resource.expirationTime) {
+                eligibleAgents.add(new Tuple(id.toString(), arriveTime * numberOfRides));
             }
         }
-
-        if (earliest <= resource.expirationTime) {
-            return bestAgent;
-        } else {
-            return null;
+        if (eligibleAgents.size() > 0) {
+            eligibleAgents.sort(new Comparator<Tuple>() {
+                @Override
+                public int compare(Tuple o1, Tuple o2) {
+                    if (o1.val > o2.val) {
+                        return 1;
+                    } else if (o1.val < o2.val) {
+                        return -1;
+                    } else {
+                        return 0;
+                    }
+                }
+            });
+//            System.out.println("Eligible Agents: " + eligibleAgents);
+            return Long.parseLong(eligibleAgents.get(0).key);
         }
+        else
+            return null;
     }
 
     private Map<Integer, Integer> getStats() {
@@ -351,6 +366,10 @@ public class AMFleetManager extends FleetManager {
         public Tuple(String _key, float _val){
             this.key = _key;
             this.val = _val;
+        }
+
+        public String toString() {
+            return this.key + ":" + this.val;
         }
     }
 
