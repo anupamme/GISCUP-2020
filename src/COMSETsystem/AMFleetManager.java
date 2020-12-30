@@ -225,6 +225,18 @@ public class AMFleetManager extends FleetManager {
         }
     }
 
+    private Map<Integer, Integer> getStats() {
+        Map<Integer, Integer> output = new HashMap<>();
+        for (Long agentId : agentResourceHistory.keySet()){
+            int val = agentResourceHistory.get(agentId).size();
+            if (output.containsKey(val))
+                output.put(val, output.get(val) + 1);
+            else
+                output.put(val, 1);
+        }
+        return output;
+    }
+
     /*
         1. If state == 'available':
             leaf_node: find the leaf node id of the location
@@ -239,9 +251,11 @@ public class AMFleetManager extends FleetManager {
     public AgentAction onResourceAvailabilityChange(Resource resource, ResourceState state, LocationOnRoad currentLoc,
                                                     long time) {
         System.out.println("Total #unavailable regions: " + absentRegions.size());
-        for (Long agentId : agentResourceHistory.keySet()){
-            System.out.println("agent, size: " + agentId + ": " + agentResourceHistory.get(agentId).size());
-        }
+        Map<Integer, Integer> agentStats = getStats();
+        System.out.println("Agent Stats: " + agentStats);
+//        for (Long agentId : agentResourceHistory.keySet()){
+//            System.out.println("agent, size: " + agentId + ": " + agentResourceHistory.get(agentId).size());
+//        }
         AgentAction action = AgentAction.doNothing();
         if (state == ResourceState.AVAILABLE) {
             Long nearestAgentId = getNearestAvailableAgent(resource, time);
