@@ -448,7 +448,7 @@ public class AMFleetManager extends FleetManager {
         }
     }
 
-    LinkedList<Intersection> getRandomRoute(long agentId, LocationOnRoad currentLocation) {
+    LinkedList<Intersection> getRandomRoute(long agentId, LocationOnRoad currentLocation, long time) {
         Random random = agentRnd.getOrDefault(agentId, new Random(agentId));
         agentRnd.put(agentId, random);
 
