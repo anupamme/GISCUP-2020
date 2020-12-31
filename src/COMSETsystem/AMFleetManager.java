@@ -36,7 +36,7 @@ public class AMFleetManager extends FleetManager {
     private final Map<Long, Resource> resourceAssignment = new HashMap<>();
     private final Map<Long, LinkedList<Intersection>> agentRoutes = new HashMap<>();
     private final Map<Long, List<Resource>> agentResourceHistory = new HashMap<>();
-
+    private final Map<Long, Random> agentRnd = new HashMap<>();
 
     public AMFleetManager(CityMap map) {
         super(map);
@@ -448,64 +448,86 @@ public class AMFleetManager extends FleetManager {
         }
     }
 
-    LinkedList<Intersection> getRandomRoute(long agentId, LocationOnRoad currentLoc, long time) {
+    LinkedList<Intersection> getRandomRoute(long agentId, LocationOnRoad currentLocation) {
+        Random random = agentRnd.getOrDefault(agentId, new Random(agentId));
+        agentRnd.put(agentId, random);
 
-//        System.out.println("finding next intersection for: " + agentId);
-        double[] latLon = getLocationLatLon(currentLoc);
-        String hexAddr = h3.geoToH3Address(latLon[0], latLon[1], h3_resolution);
-//        System.out.println("finding next intersection for region: " + hexAddr);
-        List<String> nearest_h3 = new ArrayList<>();
-        if (regionIntersectionMap.containsKey(hexAddr)) {
-            List<String> candidate_h3 = h3.kRing(hexAddr, 1);
-            for (String region: candidate_h3) {
-                if (region.equals(hexAddr)) {
-                    continue;
-                }
-                if (regionIntersectionMap.containsKey(region)) {
-                    nearest_h3.add(region);
-                } else {
-                    absentRegions.add(region);
-//                    System.out.println("Ignoring the absent region: " + region);
-                }
-            }
+        Intersection sourceIntersection = currentLocation.road.to;
+        int destinationIndex = random.nextInt(map.intersections().size());
+        Intersection[] intersectionArray =
+                map.intersections().values().toArray(new Intersection[0]);
+        Intersection destinationIntersection = intersectionArray[destinationIndex];
+        if (destinationIntersection == sourceIntersection) {
+            // destination cannot be the source
+            // if destination is the source, choose a neighbor to be the destination
+            Road[] roadsFrom =
+                    sourceIntersection.roadsMapFrom.values().toArray(new Road[0]);
+            destinationIntersection = roadsFrom[0].to;
         }
-        else {
-//            System.out.println("Region not found: " + hexAddr);
-            int radius = 2;
-            do {
-                List<String> candidate_regions = h3.kRing(hexAddr, radius);
-                for (String reg : candidate_regions){
-                    if (reg.equals(hexAddr)) {
-                        continue;
-                    }
-                    if (regionIntersectionMap.containsKey(reg)){
-                        nearest_h3.add(reg);
-                    }
-                }
-                radius += 2 * radius;
-            }while (nearest_h3.size() == 0);
-        }
-        Map<String, Double> region_map = new HashMap<>();
-        for (String nearest_region : nearest_h3){
-            double resource_estimate = getRegionWeight(nearest_region);
-//            double resource_estimate = getRegionWeightTemporal(nearest_region, time);
-            region_map.put(nearest_region, resource_estimate);
-        }
-//        System.out.println("Candidate Resource: " + region_map);
-        Map<String, Float> h3_probabilities = calculate_probabilities(hexAddr, region_map);
-//        System.out.println("Region Probabilities: " + h3_probabilities);
-        String h3_selected = sample_regions(h3_probabilities);
-//        System.out.println("next region: " + h3_selected);
-        Intersection selected_intersection = selectIntersection(h3_selected);
-//        System.out.println("next intersection: " + selected_intersection.id);
-        Intersection sourceIntersection = currentLoc.road.to;
-        LinkedList<Intersection> path = map.shortestTravelTimePath(sourceIntersection, selected_intersection);
-//        System.out.println("Selected Path: " + path);
-        path.poll(); // ignore the first destination as it is the source one
-//        Intersection destination = path.poll();
-//        System.out.println("poll.destination: " + destination);
-        return path;
+        LinkedList<Intersection> shortestTravelTimePath = map.shortestTravelTimePath(sourceIntersection,
+                destinationIntersection);
+        shortestTravelTimePath.poll(); // Ensure that route.get(0) != currentLocation.road.to.
+        return shortestTravelTimePath;
     }
+
+//    LinkedList<Intersection> getRandomRoute(long agentId, LocationOnRoad currentLoc, long time) {
+//
+////        System.out.println("finding next intersection for: " + agentId);
+//        double[] latLon = getLocationLatLon(currentLoc);
+//        String hexAddr = h3.geoToH3Address(latLon[0], latLon[1], h3_resolution);
+////        System.out.println("finding next intersection for region: " + hexAddr);
+//        List<String> nearest_h3 = new ArrayList<>();
+//        if (regionIntersectionMap.containsKey(hexAddr)) {
+//            List<String> candidate_h3 = h3.kRing(hexAddr, 1);
+//            for (String region: candidate_h3) {
+//                if (region.equals(hexAddr)) {
+//                    continue;
+//                }
+//                if (regionIntersectionMap.containsKey(region)) {
+//                    nearest_h3.add(region);
+//                } else {
+//                    absentRegions.add(region);
+////                    System.out.println("Ignoring the absent region: " + region);
+//                }
+//            }
+//        }
+//        else {
+////            System.out.println("Region not found: " + hexAddr);
+//            int radius = 2;
+//            do {
+//                List<String> candidate_regions = h3.kRing(hexAddr, radius);
+//                for (String reg : candidate_regions){
+//                    if (reg.equals(hexAddr)) {
+//                        continue;
+//                    }
+//                    if (regionIntersectionMap.containsKey(reg)){
+//                        nearest_h3.add(reg);
+//                    }
+//                }
+//                radius += 2 * radius;
+//            }while (nearest_h3.size() == 0);
+//        }
+//        Map<String, Double> region_map = new HashMap<>();
+//        for (String nearest_region : nearest_h3){
+//            double resource_estimate = getRegionWeight(nearest_region);
+////            double resource_estimate = getRegionWeightTemporal(nearest_region, time);
+//            region_map.put(nearest_region, resource_estimate);
+//        }
+////        System.out.println("Candidate Resource: " + region_map);
+//        Map<String, Float> h3_probabilities = calculate_probabilities(hexAddr, region_map);
+////        System.out.println("Region Probabilities: " + h3_probabilities);
+//        String h3_selected = sample_regions(h3_probabilities);
+////        System.out.println("next region: " + h3_selected);
+//        Intersection selected_intersection = selectIntersection(h3_selected);
+////        System.out.println("next intersection: " + selected_intersection.id);
+//        Intersection sourceIntersection = currentLoc.road.to;
+//        LinkedList<Intersection> path = map.shortestTravelTimePath(sourceIntersection, selected_intersection);
+////        System.out.println("Selected Path: " + path);
+//        path.poll(); // ignore the first destination as it is the source one
+////        Intersection destination = path.poll();
+////        System.out.println("poll.destination: " + destination);
+//        return path;
+//    }
 
     LinkedList<Intersection> planRoute(long agentId, LocationOnRoad currentLocation, long time) {
         Resource assignedRes = resourceAssignment.get(agentId);
