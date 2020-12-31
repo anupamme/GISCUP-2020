@@ -246,7 +246,7 @@ public class RandomDestinationFleetManager extends FleetManager {
             shortestTravelTimePath.poll(); // Ensure that route.get(0) != currentLocation.road.to.
             return shortestTravelTimePath;
         } else {
-            return getRandomRoute(agentId, currentLocation, time);
+            return getRandomRoute_t(agentId, currentLocation, time);
         }
     }
 
@@ -370,27 +370,27 @@ public class RandomDestinationFleetManager extends FleetManager {
         }
     }
 
-//    LinkedList<Intersection> getRandomRoute(long agentId, LocationOnRoad currentLocation, long time) {
-//        Random random = agentRnd.getOrDefault(agentId, new Random(agentId));
-//        agentRnd.put(agentId, random);
-//
-//        Intersection sourceIntersection = currentLocation.road.to;
-//        int destinationIndex = random.nextInt(map.intersections().size());
-//        Intersection[] intersectionArray =
-//                map.intersections().values().toArray(new Intersection[0]);
-//       Intersection destinationIntersection = intersectionArray[destinationIndex];
-//        if (destinationIntersection == sourceIntersection) {
-//            // destination cannot be the source
-//            // if destination is the source, choose a neighbor to be the destination
-//            Road[] roadsFrom =
-//                    sourceIntersection.roadsMapFrom.values().toArray(new Road[0]);
-//            destinationIntersection = roadsFrom[0].to;
-//        }
-//        LinkedList<Intersection> shortestTravelTimePath = map.shortestTravelTimePath(sourceIntersection,
-//                destinationIntersection);
-//        shortestTravelTimePath.poll(); // Ensure that route.get(0) != currentLocation.road.to.
-//        return shortestTravelTimePath;
-//    }
+    LinkedList<Intersection> getRandomRoute_t(long agentId, LocationOnRoad currentLocation, long time) {
+        Random random = agentRnd.getOrDefault(agentId, new Random(agentId));
+        agentRnd.put(agentId, random);
+
+        Intersection sourceIntersection = currentLocation.road.to;
+        int destinationIndex = random.nextInt(map.intersections().size());
+        Intersection[] intersectionArray =
+                map.intersections().values().toArray(new Intersection[0]);
+       Intersection destinationIntersection = intersectionArray[destinationIndex];
+        if (destinationIntersection == sourceIntersection) {
+            // destination cannot be the source
+            // if destination is the source, choose a neighbor to be the destination
+            Road[] roadsFrom =
+                    sourceIntersection.roadsMapFrom.values().toArray(new Road[0]);
+            destinationIntersection = roadsFrom[0].to;
+        }
+        LinkedList<Intersection> shortestTravelTimePath = map.shortestTravelTimePath(sourceIntersection,
+                destinationIntersection);
+        shortestTravelTimePath.poll(); // Ensure that route.get(0) != currentLocation.road.to.
+        return shortestTravelTimePath;
+    }
 
     LinkedList<Intersection> getRandomRoute(long agentId, LocationOnRoad currentLoc, long time) {
 
