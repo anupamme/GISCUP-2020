@@ -25,7 +25,7 @@ public class AMFleetManager extends FleetManager {
     private final Map<String, List<Intersection>> regionIntersectionMap = new HashMap<>();
     private final Map<String, List<Long>> regionAvailableAgentMap = new HashMap<>();
     private final Set<String> absentRegions = new HashSet<>();
-    private final Map<String, Integer> regionResourceMap = new HashMap<>();
+    private final Map<String, Float> regionResourceMap = new HashMap<>();
     private final List<String> regionList = new ArrayList<>();
     private final Map<String, List<Integer>> regionResourceTimeStamp = new HashMap<>();
     private final Map<String, List<Integer>> regionDestinationTimeStamp = new HashMap<>();
@@ -141,7 +141,7 @@ public class AMFleetManager extends FleetManager {
                 e.printStackTrace();
             }
             String[] elements = tempString.split(":");
-            regionResourceMap.put(elements[0], Integer.parseInt(elements[1]));
+            regionResourceMap.put(elements[0], Float.parseFloat(elements[1]));
         }
     }
 
@@ -216,6 +216,7 @@ public class AMFleetManager extends FleetManager {
                 numberOfRides = agentResourceHistory.get(id).size();
             else
                 numberOfRides = 0;
+
             if (arriveTime <= resource.expirationTime) {
                 eligibleAgents.add(new Tuple(id.toString(), arriveTime * numberOfRides));
             }
@@ -436,7 +437,7 @@ public class AMFleetManager extends FleetManager {
 
 
 
-    private int getRegionWeight(String h3_code){
+    private float getRegionWeight(String h3_code){
         if (regionResourceMap.containsKey(h3_code)){
             return regionResourceMap.get(h3_code);
         }
