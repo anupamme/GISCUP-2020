@@ -18,6 +18,7 @@ public class RandomDestinationFleetManager extends FleetManager {
     private final Map<String, List<Integer>> regionResourceTimeStamp = new HashMap<>();
     private final Map<String, List<Integer>> regionDestinationTimeStamp = new HashMap<>();
     private final List<String> regionList = new ArrayList<>();
+    private final Map<Long, List<Resource>> agentResourceHistory = new HashMap<>();
     private final Map<Long, Long> agentLastAppearTime = new HashMap<>();
     private final Map<Long, LocationOnRoad> agentLastLocation = new HashMap<>();
     private final Map<Long, Resource> resourceAssignment = new HashMap<>();
@@ -148,6 +149,18 @@ public class RandomDestinationFleetManager extends FleetManager {
         availableAgent.add(agentId);
     }
 
+    private Map<Integer, Integer> getStats() {
+        Map<Integer, Integer> output = new HashMap<>();
+        for (Long agentId : agentResourceHistory.keySet()){
+            int val = agentResourceHistory.get(agentId).size();
+            if (output.containsKey(val))
+                output.put(val, output.get(val) + 1);
+            else
+                output.put(val, 1);
+        }
+        return output;
+    }
+
     /**
      * The simulation calls this method to notify the **FleetManager** that the resource's state has changed:
      * + resource becomes available for pickup
@@ -166,6 +179,8 @@ public class RandomDestinationFleetManager extends FleetManager {
                                                     LocationOnRoad currentLoc,
                                                     long time) {
 
+        Map<Integer, Integer> agentStats = getStats();
+        System.out.println("Agent Stats: " + agentStats);
         AgentAction action = AgentAction.doNothing();
 
         if (state == ResourceState.AVAILABLE) {
@@ -285,6 +300,7 @@ public class RandomDestinationFleetManager extends FleetManager {
     Long getNearestAvailableAgent(Resource resource, long currentTime) {
         long earliest = Long.MAX_VALUE;
         Long bestAgent = null;
+        List<RandomDestinationFleetManager.Tuple> eligibleAgents = new ArrayList<>();
         for (Long id : availableAgent) {
             if (!agentLastLocation.containsKey(id)) continue;
 
@@ -297,17 +313,34 @@ public class RandomDestinationFleetManager extends FleetManager {
             // than the actual travel time.
             long travelTime = map.travelTimeBetween(curLoc, resource.pickupLoc);
             long arriveTime = travelTime + currentTime;
-            if (arriveTime < earliest) {
-                bestAgent = id;
-                earliest = arriveTime;
+            int numberOfRides;
+            if (agentResourceHistory.containsKey(id))
+                numberOfRides = agentResourceHistory.get(id).size();
+            else
+                numberOfRides = 0;
+
+            if (arriveTime <= resource.expirationTime) {
+                eligibleAgents.add(new RandomDestinationFleetManager.Tuple(id.toString(), arriveTime * numberOfRides));
             }
         }
-
-        if (earliest <= resource.expirationTime) {
-            return bestAgent;
-        } else {
-            return null;
+        if (eligibleAgents.size() > 0) {
+            eligibleAgents.sort(new Comparator<RandomDestinationFleetManager.Tuple>() {
+                @Override
+                public int compare(RandomDestinationFleetManager.Tuple o1, RandomDestinationFleetManager.Tuple o2) {
+                    if (o1.val > o2.val) {
+                        return 1;
+                    } else if (o1.val < o2.val) {
+                        return -1;
+                    } else {
+                        return 0;
+                    }
+                }
+            });
+//            System.out.println("Eligible Agents: " + eligibleAgents);
+            return Long.parseLong(eligibleAgents.get(0).key);
         }
+        else
+            return null;
     }
 
     LinkedList<Intersection> planRoute(long agentId, LocationOnRoad currentLocation, long time) {

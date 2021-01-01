@@ -63,7 +63,7 @@ public class FleetManagerTest {
         Intersection intersection = spyFleetManager.onReachIntersection(1L, 1000, currentLoc);
 
         assertEquals(testMap.intersection3, intersection);
-        verify(spyFleetManager, times(0)).planRoute(anyLong(), any(LocationOnRoad.class));
+        verify(spyFleetManager, times(0)).planRoute(anyLong(), any(LocationOnRoad.class), 0);
         // Check the remaining part of the route has the left over part of the route
         // Argument to containsKey and get must have long type        assertTrue(spyFleetManager.agentRoutes.containsKey(1L));
         assertEquals(testMap.intersection4, spyFleetManager.agentRoutes.get(1L).getFirst());
@@ -109,7 +109,7 @@ public class FleetManagerTest {
                 1L, 1000, currentLoc, mockResource);
 
         assertEquals(testMap.intersection3, intersection);
-        verify(spyFleetManager, times(0)).planRoute(anyLong(), any(LocationOnRoad.class));
+        verify(spyFleetManager, times(0)).planRoute(anyLong(), any(LocationOnRoad.class), 0);
         // Check the remaining part of the route has the left over part of the route
         // Argument to containsKey and get must have long type        assertTrue(spyFleetManager.agentRoutes.containsKey(1L));
         assertEquals(testMap.intersection4, spyFleetManager.agentRoutes.get(1L).getFirst());
