@@ -16,6 +16,7 @@ public class TemporalUtils {
     int numOfTimeInterval;
 
     public TemporalUtils(ZoneId zoneId){
+        System.out.println("ZoneID: " + zoneId);
         zone = zoneId;
         start = ZonedDateTime.of(GlobalParameters.temporal_start_datetime, zoneId);
         end = ZonedDateTime.of(GlobalParameters.temporal_end_datetime, zoneId);

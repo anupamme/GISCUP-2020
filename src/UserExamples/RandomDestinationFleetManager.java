@@ -1,6 +1,7 @@
 package UserExamples;
 
 import COMSETsystem.*;
+import UserExamples.TemporalUtils;
 import com.uber.h3core.H3Core;
 import com.uber.h3core.exceptions.DistanceUndefinedException;
 
@@ -11,8 +12,12 @@ import java.util.concurrent.ThreadLocalRandom;
 public class RandomDestinationFleetManager extends FleetManager {
     H3Core h3;
     private final int h3_resolution = 8;
+    private TemporalUtils temporalUtils;
     private final Map<String, List<Intersection>> regionIntersectionMap = new HashMap<>();
     private final Map<String, Float> regionResourceMap = new HashMap<>();
+    private final Map<String, List<Integer>> regionResourceTimeStamp = new HashMap<>();
+    private final Map<String, List<Integer>> regionDestinationTimeStamp = new HashMap<>();
+    private final List<String> regionList = new ArrayList<>();
     private final Map<Long, Long> agentLastAppearTime = new HashMap<>();
     private final Map<Long, LocationOnRoad> agentLastLocation = new HashMap<>();
     private final Map<Long, Resource> resourceAssignment = new HashMap<>();
@@ -56,6 +61,76 @@ public class RandomDestinationFleetManager extends FleetManager {
             }
             String[] elements = tempString.split(":");
             regionResourceMap.put(elements[0], Float.parseFloat(elements[1]));
+        }
+    }
+
+    private void readPickupMatrix(String fileName){
+        try{
+            File file = new File(fileName);
+            BufferedReader reader = new BufferedReader(new FileReader(file));
+            for (String item : regionList)
+                regionResourceTimeStamp.put(item, new ArrayList<Integer>());
+            String tmp = null;
+            while ((tmp = reader.readLine()) != null){
+                String[] regionData = tmp.split(",");
+                if (regionList.size() < regionData.length) {
+                    System.out.println("Size of Region list and region data: " + regionList.size()
+                            + ", " + regionData.length);
+                }
+                for(int i=0; i<regionData.length; i++){
+                    if (i < regionList.size()){
+                        String region_hex = regionList.get(i);
+                        regionResourceTimeStamp.get(region_hex).add((int)Double.parseDouble(regionData[i]));
+                    }
+                    else {
+                        int a = 1;
+//                        System.out.println("Region not found in region list for index: " + i);
+                    }
+                }
+            }
+            reader.close();
+        }catch (Exception ex){
+            ex.printStackTrace();
+        }
+    }
+
+    private void readDropOffMatrix(String fileName){
+        try{
+            File file = new File(fileName);
+            BufferedReader reader = new BufferedReader(new FileReader(file));
+            for (String item : regionList)
+                regionDestinationTimeStamp.put(item, new ArrayList<Integer>());
+            String tmp = null;
+            while ((tmp = reader.readLine()) != null){
+                String[] regionData = tmp.split(",");
+                if (regionList.size() < regionData.length) {
+                    System.out.println("Size of Region list and region data: " + regionList.size()
+                            + ", " + regionData.length);
+                }
+                for(int i=0; i<regionData.length; i++){
+                    if (i < regionList.size()) {
+                        String region_hex = regionList.get(i);
+                        regionDestinationTimeStamp.get(region_hex).add((int) Double.parseDouble(regionData[i]));
+                    }
+                }
+            }
+            reader.close();
+        }catch (Exception ex){
+            ex.printStackTrace();
+        }
+    }
+
+    private void readRegionList(String fileName) {
+        try{
+            File file = new File(fileName);
+            BufferedReader reader = new BufferedReader(new FileReader(file));
+            String tmp = null;
+            while ((tmp = reader.readLine()) != null) {
+                regionList.add(tmp);
+            }
+            reader.close();
+        }catch (Exception ex){
+            ex.printStackTrace();
         }
     }
 
@@ -246,7 +321,7 @@ public class RandomDestinationFleetManager extends FleetManager {
             shortestTravelTimePath.poll(); // Ensure that route.get(0) != currentLocation.road.to.
             return shortestTravelTimePath;
         } else {
-            return getRandomRoute_t(agentId, currentLocation, time);
+            return getRandomRoute_AM(agentId, currentLocation, time);
         }
     }
 
@@ -370,7 +445,28 @@ public class RandomDestinationFleetManager extends FleetManager {
         }
     }
 
-    LinkedList<Intersection> getRandomRoute_t(long agentId, LocationOnRoad currentLocation, long time) {
+    private double getRegionWeightTemporal(String region_h3, long time){
+        int timeIndex = temporalUtils.findTimeIntervalIndex(time);
+        int k = GlobalParameters.timeHorizon / GlobalParameters.timeInterval;
+        double weight = 1.0;
+        List<Integer> resourceTimeStamp = regionResourceTimeStamp.get(region_h3);
+        List<Integer> destinationTimeStamp = regionDestinationTimeStamp.get(region_h3);
+        if (resourceTimeStamp == null | destinationTimeStamp == null){
+            weight =  1;
+            return weight;
+        }
+        else {
+            for (int i = timeIndex; i < timeIndex + k; i++) {
+                if (i < resourceTimeStamp.size())
+                    weight += Math.pow(0.8, i - timeIndex) * (resourceTimeStamp.get(i) - GlobalParameters.lambda * destinationTimeStamp.get(i));
+            }
+            if (weight < 0)
+                weight = 1.0;
+            return weight;
+        }
+    }
+
+    LinkedList<Intersection> getRandomRoute(long agentId, LocationOnRoad currentLocation) {
         Random random = agentRnd.getOrDefault(agentId, new Random(agentId));
         agentRnd.put(agentId, random);
 
@@ -392,7 +488,7 @@ public class RandomDestinationFleetManager extends FleetManager {
         return shortestTravelTimePath;
     }
 
-    LinkedList<Intersection> getRandomRoute(long agentId, LocationOnRoad currentLoc, long time) {
+    LinkedList<Intersection> getRandomRoute_AM(long agentId, LocationOnRoad currentLoc, long time) {
 
 //        System.out.println("finding next intersection for: " + agentId);
         double[] latLon = getLocationLatLon(currentLoc);
@@ -460,5 +556,9 @@ public class RandomDestinationFleetManager extends FleetManager {
         }
         populateRegionIntersecitonMap();
         readRegionFrequencyFile(GlobalParameters.region_frequency);
+//        temporalUtils = new TemporalUtils(map.computeZoneId());
+//        readPickupMatrix(GlobalParameters.pickup_pred_file);
+//        readDropOffMatrix(GlobalParameters.dropoff_pred_file);
+//        readRegionList(GlobalParameters.regions_list);
     }
 }
