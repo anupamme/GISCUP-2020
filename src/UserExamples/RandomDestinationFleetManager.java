@@ -190,6 +190,13 @@ public class RandomDestinationFleetManager extends FleetManager {
                 agentRoutes.put(assignedAgent, new LinkedList<>());
                 availableAgent.remove(assignedAgent);
                 action = AgentAction.assignTo(assignedAgent, resource.id);
+                if (agentResourceHistory.containsKey(assignedAgent))
+                    agentResourceHistory.get(assignedAgent).add(resource);
+                else {
+                    List<Resource> newList = new ArrayList<>();
+                    newList.add(resource);
+                    agentResourceHistory.put(assignedAgent, newList);
+                }
             } else {
                 waitingResources.add(resource);
             }
