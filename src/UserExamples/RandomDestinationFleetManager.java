@@ -320,11 +320,11 @@ public class RandomDestinationFleetManager extends FleetManager {
             // than the actual travel time.
             long travelTime = map.travelTimeBetween(curLoc, resource.pickupLoc);
             long arriveTime = travelTime + currentTime;
-            int numberOfRides;
-            if (agentResourceHistory.containsKey(id))
-                numberOfRides = agentResourceHistory.get(id).size();
-            else
-                numberOfRides = 0;
+            int numberOfRides = 1;
+//            if (agentResourceHistory.containsKey(id))
+//                numberOfRides = agentResourceHistory.get(id).size();
+//            else
+//                numberOfRides = 0;
 
             if (arriveTime <= resource.expirationTime) {
                 eligibleAgents.add(new RandomDestinationFleetManager.Tuple(id.toString(), arriveTime * numberOfRides));
