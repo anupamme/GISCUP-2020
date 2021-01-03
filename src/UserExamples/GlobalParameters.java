@@ -23,4 +23,16 @@ public class GlobalParameters {
     public static final String intersectionResourceFile = "model/intersectionPickup_1_6_pred.txt";
     public static final LocalDateTime temporal_start_datetime = LocalDateTime.of(2016, 1, 1, 0, 0,0);
     public static final LocalDateTime temporal_end_datetime = LocalDateTime.of(2016, 7, 1, 0, 0, 0);
+    public enum agentAssignmentPolicy {
+        Nearest,
+        Fair
+    }
+    public enum agentDirectionalPolicy {
+        Random,
+        FixedFrequency,
+        TemporalFrequency
+    }
+    public boolean addNoise = false;
+    public static agentAssignmentPolicy agent_assignment = agentAssignmentPolicy.Nearest;
+    public static agentDirectionalPolicy agent_direction = agentDirectionalPolicy.Random;
 }

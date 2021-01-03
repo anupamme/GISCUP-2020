@@ -320,12 +320,18 @@ public class RandomDestinationFleetManager extends FleetManager {
             // than the actual travel time.
             long travelTime = map.travelTimeBetween(curLoc, resource.pickupLoc);
             long arriveTime = travelTime + currentTime;
-            int numberOfRides = 1;
-//            if (agentResourceHistory.containsKey(id))
-//                numberOfRides = agentResourceHistory.get(id).size();
-//            else
-//                numberOfRides = 0;
-
+            int numberOfRides;
+            if (GlobalParameters.agent_assignment == GlobalParameters.agentAssignmentPolicy.Nearest){
+                numberOfRides = 1;
+            }
+            else if (GlobalParameters.agent_assignment == GlobalParameters.agentAssignmentPolicy.Fair) {
+                if (agentResourceHistory.containsKey(id))
+                    numberOfRides = agentResourceHistory.get(id).size();
+                else
+                    numberOfRides = 0;
+            }
+            else
+                numberOfRides = -1;
             if (arriveTime <= resource.expirationTime) {
                 eligibleAgents.add(new RandomDestinationFleetManager.Tuple(id.toString(), arriveTime * numberOfRides));
             }
@@ -361,7 +367,17 @@ public class RandomDestinationFleetManager extends FleetManager {
             shortestTravelTimePath.poll(); // Ensure that route.get(0) != currentLocation.road.to.
             return shortestTravelTimePath;
         } else {
-            return getRandomRoute_AM(agentId, currentLocation, time);
+            if (GlobalParameters.agent_direction == GlobalParameters.agentDirectionalPolicy.Random){
+                return getRandomRoute(agentId, currentLocation);
+            }
+            else if (GlobalParameters.agent_direction == GlobalParameters.agentDirectionalPolicy.FixedFrequency) {
+                return getFrequencyRoute(agentId, currentLocation);
+            }
+            else if (GlobalParameters.agent_direction == GlobalParameters.agentDirectionalPolicy.TemporalFrequency) {
+                return getFrequencyTemporalRoute(agentId, currentLocation, time);
+            }
+            else
+                return getRandomRoute(agentId, currentLocation);
         }
     }
 
@@ -528,7 +544,64 @@ public class RandomDestinationFleetManager extends FleetManager {
         return shortestTravelTimePath;
     }
 
-    LinkedList<Intersection> getRandomRoute_AM(long agentId, LocationOnRoad currentLoc, long time) {
+    LinkedList<Intersection> getFrequencyTemporalRoute(long agentId, LocationOnRoad currentLoc, long time) {
+        //        System.out.println("finding next intersection for: " + agentId);
+        double[] latLon = getLocationLatLon(currentLoc);
+        String hexAddr = h3.geoToH3Address(latLon[0], latLon[1], h3_resolution);
+//        System.out.println("finding next intersection for region: " + hexAddr);
+        List<String> nearest_h3 = new ArrayList<>();
+        if (regionIntersectionMap.containsKey(hexAddr)) {
+            List<String> candidate_h3 = h3.kRing(hexAddr, 1);
+            for (String region: candidate_h3) {
+                if (region.equals(hexAddr)) {
+                    continue;
+                }
+                if (regionIntersectionMap.containsKey(region)) {
+                    nearest_h3.add(region);
+                } else {
+                    int a = 1;
+//                    System.out.println("Ignoring the absent region: " + region);
+                }
+            }
+        }
+        else {
+//            System.out.println("Region not found: " + hexAddr);
+            int radius = 2;
+            do {
+                List<String> candidate_regions = h3.kRing(hexAddr, radius);
+                for (String reg : candidate_regions){
+                    if (reg.equals(hexAddr)) {
+                        continue;
+                    }
+                    if (regionIntersectionMap.containsKey(reg)){
+                        nearest_h3.add(reg);
+                    }
+                }
+                radius += 2 * radius;
+            }while (nearest_h3.size() == 0);
+        }
+        Map<String, Double> region_map = new HashMap<>();
+        for (String nearest_region : nearest_h3){
+            double resource_estimate = getRegionWeightTemporal(nearest_region, time);
+            region_map.put(nearest_region, resource_estimate);
+        }
+//        System.out.println("Candidate Resource: " + region_map);
+        Map<String, Float> h3_probabilities = calculate_probabilities(hexAddr, region_map);
+//        System.out.println("Region Probabilities: " + h3_probabilities);
+        String h3_selected = sample_regions(h3_probabilities);
+//        System.out.println("next region: " + h3_selected);
+        Intersection selected_intersection = selectIntersection(h3_selected);
+//        System.out.println("next intersection: " + selected_intersection.id);
+        Intersection sourceIntersection = currentLoc.road.to;
+        LinkedList<Intersection> path = map.shortestTravelTimePath(sourceIntersection, selected_intersection);
+//        System.out.println("Selected Path: " + path);
+        path.poll(); // ignore the first destination as it is the source one
+//        Intersection destination = path.poll();
+//        System.out.println("poll.destination: " + destination);
+        return path;
+    }
+
+    LinkedList<Intersection> getFrequencyRoute(long agentId, LocationOnRoad currentLoc) {
 
 //        System.out.println("finding next intersection for: " + agentId);
         double[] latLon = getLocationLatLon(currentLoc);
@@ -568,7 +641,6 @@ public class RandomDestinationFleetManager extends FleetManager {
         Map<String, Double> region_map = new HashMap<>();
         for (String nearest_region : nearest_h3){
             double resource_estimate = getRegionWeight(nearest_region);
-//            double resource_estimate = getRegionWeightTemporal(nearest_region, time);
             region_map.put(nearest_region, resource_estimate);
         }
 //        System.out.println("Candidate Resource: " + region_map);

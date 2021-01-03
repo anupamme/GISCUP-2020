@@ -13,11 +13,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class AMFleetManager extends FleetManager {
 
-    public enum agent_assignment_policy {
-        Minimum_Driving_Distance,
-        Minimum_Expiration,
-        Waiting_Time_Resource
-    }
     H3Core h3;
     private final int h3_resolution = 8;
     private TemporalUtils temporalUtils;
