@@ -35,5 +35,5 @@ public class GlobalParameters {
     }
     public boolean addNoise = false;
     public static agentAssignmentPolicy agent_assignment = agentAssignmentPolicy.Nearest;
-    public static agentDirectionalPolicy agent_direction = agentDirectionalPolicy.Random;
+    public static agentDirectionalPolicy agent_direction = agentDirectionalPolicy.FixedFrequency;
 }

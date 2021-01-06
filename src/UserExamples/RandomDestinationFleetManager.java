@@ -11,7 +11,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class RandomDestinationFleetManager extends FleetManager {
     H3Core h3;
-    private final int h3_resolution = 9;
+    private final int h3_resolution = 3;
     private TemporalUtils temporalUtils;
     private final Map<String, List<Intersection>> regionIntersectionMap = new HashMap<>();
     private final Map<String, Float> regionResourceMap = new HashMap<>();
@@ -610,6 +610,7 @@ public class RandomDestinationFleetManager extends FleetManager {
         List<String> nearest_h3 = new ArrayList<>();
         if (regionIntersectionMap.containsKey(hexAddr)) {
             List<String> candidate_h3 = h3.kRing(hexAddr, 1);
+//            System.out.println("candidate h3: " + candidate_h3);
             for (String region: candidate_h3) {
                 if (region.equals(hexAddr)) {
                     continue;
@@ -618,12 +619,13 @@ public class RandomDestinationFleetManager extends FleetManager {
                     nearest_h3.add(region);
                 } else {
                     int a = 1;
-//                    System.out.println("Ignoring the absent region: " + region);
+//                    System.out.println("Ignoring the absent region in intersection region: " + region);
                 }
             }
         }
-        else {
+        else
 //            System.out.println("Region not found: " + hexAddr);
+        if (nearest_h3.size() == 0) {
             int radius = 2;
             do {
                 List<String> candidate_regions = h3.kRing(hexAddr, radius);
@@ -638,6 +640,7 @@ public class RandomDestinationFleetManager extends FleetManager {
                 radius += 2 * radius;
             }while (nearest_h3.size() == 0);
         }
+//        System.out.println("Nearest Regions: " + nearest_h3);
         Map<String, Double> region_map = new HashMap<>();
         for (String nearest_region : nearest_h3){
             double resource_estimate = getRegionWeight(nearest_region);
@@ -654,7 +657,7 @@ public class RandomDestinationFleetManager extends FleetManager {
         LinkedList<Intersection> path = map.shortestTravelTimePath(sourceIntersection, selected_intersection);
 //        System.out.println("Selected Path: " + path);
         path.poll(); // ignore the first destination as it is the source one
-//        Intersection destination = path.poll();
+        Intersection destination = path.poll();
 //        System.out.println("poll.destination: " + destination);
         return path;
     }
