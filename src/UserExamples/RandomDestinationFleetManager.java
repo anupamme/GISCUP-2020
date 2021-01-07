@@ -11,7 +11,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class RandomDestinationFleetManager extends FleetManager {
     H3Core h3;
-    private final int h3_resolution = 5;
+    private final int h3_resolution = 3;
     private TemporalUtils temporalUtils;
     private final Map<String, List<Intersection>> regionIntersectionMap = new HashMap<>();
     private final Map<String, Float> regionResourceMap = new HashMap<>();
