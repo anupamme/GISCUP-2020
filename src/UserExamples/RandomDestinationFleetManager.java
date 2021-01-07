@@ -11,7 +11,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class RandomDestinationFleetManager extends FleetManager {
     H3Core h3;
-    private final int h3_resolution = 3;
+    private final int h3_resolution = 5;
     private TemporalUtils temporalUtils;
     private final Map<String, List<Intersection>> regionIntersectionMap = new HashMap<>();
     private final Map<String, Float> regionResourceMap = new HashMap<>();
@@ -623,7 +623,7 @@ public class RandomDestinationFleetManager extends FleetManager {
                 }
             }
         }
-        else
+//        else
 //            System.out.println("Region not found: " + hexAddr);
         if (nearest_h3.size() == 0) {
             int radius = 2;
@@ -656,7 +656,7 @@ public class RandomDestinationFleetManager extends FleetManager {
         Intersection sourceIntersection = currentLoc.road.to;
         LinkedList<Intersection> path = map.shortestTravelTimePath(sourceIntersection, selected_intersection);
 //        System.out.println("Selected Path: " + path);
-        path.poll(); // ignore the first destination as it is the source one
+//        path.poll(); // ignore the first destination as it is the source one
         Intersection destination = path.poll();
 //        System.out.println("poll.destination: " + destination);
         return path;
