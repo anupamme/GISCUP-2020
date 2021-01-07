@@ -16,8 +16,8 @@ public class GlobalParameters {
     public static final double gamma = -1.5;
     public static final double lambda = 0.8;
 //    public static final String region_frequency = "datasets/h3_regions_7.txt";
-    public static final String region_frequency = "datasets/h3_regions_3.txt";
-//    public static final String region_frequency = "datasets/h3_regions_noisy_9.txt";
+//    public static final String region_frequency = "datasets/h3_regions_3.txt";
+    public static final String region_frequency = "datasets/h3_regions_noisy_4.txt";
     public static final String regions_list = "model/regions.txt";
     public static final String pickup_pred_file = "model/pickup_pred_1_6.txt";
     public static final String dropoff_pred_file = "model/dropoff_pred_1_6.txt";
