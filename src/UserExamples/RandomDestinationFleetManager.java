@@ -19,6 +19,7 @@ public class RandomDestinationFleetManager extends FleetManager {
     private final Map<String, List<Integer>> regionDestinationTimeStamp = new HashMap<>();
     private final List<String> regionList = new ArrayList<>();
     private final Map<Long, List<Resource>> agentResourceHistory = new HashMap<>();
+    private final Map<Long, Long> agentIntroductionTime = new HashMap<>();
     private final Map<Long, Long> agentLastAppearTime = new HashMap<>();
     private final Map<Long, LocationOnRoad> agentLastLocation = new HashMap<>();
     private final Map<Long, Resource> resourceAssignment = new HashMap<>();
@@ -144,6 +145,7 @@ public class RandomDestinationFleetManager extends FleetManager {
      */
     @Override
     public void onAgentIntroduced(long agentId, LocationOnRoad currentLoc, long time) {
+        agentIntroductionTime.put(agentId, time);
         agentLastAppearTime.put(agentId, time);
         agentLastLocation.put(agentId, currentLoc);
         availableAgent.add(agentId);
@@ -179,8 +181,9 @@ public class RandomDestinationFleetManager extends FleetManager {
                                                     LocationOnRoad currentLoc,
                                                     long time) {
 
-        Map<Integer, Integer> agentStats = getStats();
-        System.out.println("Agent Stats: " + agentStats);
+//        Map<Integer, Integer> agentStats = getStats();
+//        System.out.println("Agent Stats: " + agentStats);
+        System.out.println("Agent Introduction Stats: " + agentIntroductionTime);
         AgentAction action = AgentAction.doNothing();
 
         if (state == ResourceState.AVAILABLE) {
