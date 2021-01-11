@@ -19,7 +19,10 @@ public class RandomDestinationFleetManager extends FleetManager {
     private final Map<String, List<Integer>> regionDestinationTimeStamp = new HashMap<>();
     private final List<String> regionList = new ArrayList<>();
     private final Map<Long, List<Resource>> agentResourceHistory = new HashMap<>();
-    private final Map<Long, Long> agentIntroductionTime = new HashMap<>();
+    private final Map<Long, Long> agentBusyTime = new HashMap<>();
+    private final Map<Long, Long> agentIdleTime = new HashMap<>();
+    private final Map<Long, Long> agentBusyTimer = new HashMap<>();
+    private final Map<Long, Long> agentIdleTimer = new HashMap<>();
     private final Map<Long, Long> agentLastAppearTime = new HashMap<>();
     private final Map<Long, LocationOnRoad> agentLastLocation = new HashMap<>();
     private final Map<Long, Resource> resourceAssignment = new HashMap<>();
@@ -145,10 +148,10 @@ public class RandomDestinationFleetManager extends FleetManager {
      */
     @Override
     public void onAgentIntroduced(long agentId, LocationOnRoad currentLoc, long time) {
-        agentIntroductionTime.put(agentId, time);
         agentLastAppearTime.put(agentId, time);
         agentLastLocation.put(agentId, currentLoc);
         availableAgent.add(agentId);
+        agentIdleTimer.put(agentId, time);
     }
 
     private Map<Integer, Integer> getStats() {
@@ -159,6 +162,19 @@ public class RandomDestinationFleetManager extends FleetManager {
                 output.put(val, output.get(val) + 1);
             else
                 output.put(val, 1);
+        }
+        return output;
+    }
+
+    private Map<Long, Float> getUtilStats() {
+        Map<Long, Float> output = new HashMap<>();
+        for (long agentId : agentIdleTime.keySet()) {
+            long idleTime = agentIdleTime.get(agentId);
+            long busyTime = 0;
+            if (agentBusyTime.containsKey(agentId))
+                busyTime = agentBusyTime.get(agentId);
+            Float val = ((float)busyTime/(busyTime + idleTime));
+            output.put(agentId, val);
         }
         return output;
     }
@@ -183,7 +199,8 @@ public class RandomDestinationFleetManager extends FleetManager {
 
 //        Map<Integer, Integer> agentStats = getStats();
 //        System.out.println("Agent Stats: " + agentStats);
-        System.out.println("Agent Introduction Stats: " + agentIntroductionTime);
+        Map<Long, Float> agentUtility = getUtilStats();
+        System.out.println("Agent Utility: " + agentUtility);
         AgentAction action = AgentAction.doNothing();
 
         if (state == ResourceState.AVAILABLE) {
@@ -193,6 +210,15 @@ public class RandomDestinationFleetManager extends FleetManager {
                 agentRoutes.put(assignedAgent, new LinkedList<>());
                 availableAgent.remove(assignedAgent);
                 action = AgentAction.assignTo(assignedAgent, resource.id);
+                if (agentIdleTimer.containsKey(assignedAgent)){
+                    long start = agentIdleTimer.remove(assignedAgent);
+                    long end = time;
+                    if (agentIdleTime.containsKey(assignedAgent))
+                        agentIdleTime.put(assignedAgent, (end - start) + agentIdleTime.get(assignedAgent));
+                    else
+                        agentIdleTime.put(assignedAgent, (end - start));
+                }
+                agentBusyTimer.put(assignedAgent, time);
                 if (agentResourceHistory.containsKey(assignedAgent))
                     agentResourceHistory.get(assignedAgent).add(resource);
                 else {
@@ -204,6 +230,14 @@ public class RandomDestinationFleetManager extends FleetManager {
                 waitingResources.add(resource);
             }
         } else if (state == ResourceState.DROPPED_OFF) {
+            if (agentBusyTimer.containsKey(resource.assignedAgentId)){
+                long start = agentBusyTimer.remove(resource.assignedAgentId);
+                long end = time;
+                if (agentBusyTime.containsKey(resource.assignedAgentId))
+                    agentBusyTime.put(resource.assignedAgentId, (end - start) + agentBusyTime.get(resource.assignedAgentId));
+                else
+                    agentBusyTime.put(resource.assignedAgentId, (end - start));
+            }
             Resource bestResource =  null;
             long earliest = Long.MAX_VALUE;
             for (Resource res : waitingResources) {
@@ -226,8 +260,10 @@ public class RandomDestinationFleetManager extends FleetManager {
             if (bestResource != null) {
                 waitingResources.remove(bestResource);
                 action = AgentAction.assignTo(resource.assignedAgentId, bestResource.id);
+                agentBusyTimer.put(resource.assignedAgentId, time);
             } else {
                 availableAgent.add(resource.assignedAgentId);
+                agentIdleTimer.put(resource.assignedAgentId, time);
                 action = AgentAction.doNothing();
             }
             resourceAssignment.put(resource.assignedAgentId, bestResource);
